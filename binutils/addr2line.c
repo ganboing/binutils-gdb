@@ -46,6 +46,7 @@ static bfd_boolean pretty_print;	/* -p, print on one line.  */
 static bfd_boolean base_names;		/* -s, strip directory names.  */
 
 static int naddr;		/* Number of addresses to process.  */
+static int status_fd = -1;	/* Fd for sending status code */
 static char **addr;		/* Hex addresses to process.  */
 
 static asymbol **syms;		/* Symbol table.  */
@@ -63,6 +64,7 @@ static struct option long_options[] =
   {"target", required_argument, NULL, 'b'},
   {"help", no_argument, NULL, 'H'},
   {"version", no_argument, NULL, 'V'},
+  {"statusfd", required_argument, NULL, 'stfd'},
   {0, no_argument, 0, 0}
 };
 
@@ -93,6 +95,7 @@ usage (FILE *stream, int status)
   -C --demangle[=style]  Demangle function names\n\
   -h --help              Display this information\n\
   -v --version           Display the program's version\n\
+     --statusfd          status fd for running as a server\n\
 \n"));
 
   list_supported_targets (program_name, stream);
@@ -274,6 +277,9 @@ translate_addresses (bfd *abfd, asection *section)
 		printf ("??\n");
 	    }
 	  printf ("??:0\n");
+          fflush (stdout);
+	  if (status_fd != -1)
+	    (void)write(status_fd, "N", 1);
 	}
       else
 	{
@@ -344,14 +350,18 @@ translate_addresses (bfd *abfd, asection *section)
 		     123:bar.c (inlined by) 456:main.c  */
                 printf (_(" (inlined by) "));
             }
+          fflush (stdout);
+	  if (status_fd != -1)
+	    (void)write(status_fd, "Y", 1);
 	}
 
       /* fflush() is essential for using this command as a server
          child process that reads addresses from a pipe and responds
          with line number information, processing one address at a
          time.  */
-      fflush (stdout);
     }
+  if (status_fd != -1)
+    (void)write(status_fd, "F", 1);
 }
 
 /* Process a file.  Returns an exit value for main().  */
@@ -493,6 +503,9 @@ main (int argc, char **argv)
 	  break;
 	case 'j':
 	  section_name = optarg;
+	  break;
+	case 'stfd':
+	  status_fd = atoi(optarg);
 	  break;
 	default:
 	  usage (stderr, 1);
